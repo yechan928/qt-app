@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import CopyInviteCode from '@/components/CopyInviteCode';
 import type { Group } from '@/types/database';
 
 export default function GroupList({
@@ -17,17 +18,15 @@ export default function GroupList({
   return (
     <ul className="space-y-2">
       {groups.map((g) => (
-        <li key={g.id}>
-          <Link
-            href={`/groups/${g.id}`}
-            className="flex items-center justify-between rounded-2xl bg-white p-4 shadow-sm transition hover:shadow-md"
-          >
-            <div>
-              <p className="font-medium text-stone-800">{g.name}</p>
-              <p className="mt-1 text-xs text-stone-400">초대 코드: {g.invite_code}</p>
-            </div>
+        <li key={g.id} className="rounded-2xl bg-white p-4 shadow-sm transition hover:shadow-md">
+          <Link href={`/groups/${g.id}`} className="flex items-center justify-between">
+            <p className="font-medium text-stone-800">{g.name}</p>
             <span className="text-stone-300">›</span>
           </Link>
+          <div className="mt-1 flex items-center gap-2 text-xs text-stone-400">
+            <span>초대 코드: {g.invite_code}</span>
+            <CopyInviteCode code={g.invite_code} />
+          </div>
         </li>
       ))}
     </ul>

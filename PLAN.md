@@ -408,7 +408,7 @@ create or replace function create_post_with_shares(
 - `lib/verseRef.ts`, `lib/bibleBooks.ts`
 - `app/login/page.tsx`, `app/auth/callback/route.ts`
 - `app/(protected)/page.tsx`(→ `/groups` 리다이렉트), `today/page.tsx`, `schedule/page.tsx`, `groups/page.tsx`, `groups/[id]/page.tsx`, `posts/new/page.tsx`, `posts/[id]/page.tsx`
-- `components/{KakaoLoginButton,NavBar,BackButton,PostCard,VerseLookup,QtDatePicker,QTCalendar,QTDayView,ScheduleAdminView,QTScheduleForm,QtSectionEditor,PostForm,PostBody,PostActions,CommentList,CommentForm,AmenButton,GroupList,CreateGroupForm,CreateGroupSection,JoinGroupForm,JoinGroupSection,PostFeedView,GroupShareSelect,ShareGroupModal,DailyNanum,NanumPreview}.tsx`
+- `components/{KakaoLoginButton,NavBar,BackButton,PostCard,VerseLookup,QtDatePicker,QTCalendar,QTDayView,ScheduleAdminView,QTScheduleForm,QtSectionEditor,PostForm,PostBody,PostActions,CommentList,CommentForm,AmenButton,GroupList,CreateGroupForm,CreateGroupSection,JoinGroupForm,JoinGroupSection,CopyInviteCode,PostFeedView,GroupShareSelect,ShareGroupModal,DailyNanum,NanumPreview}.tsx`
 - `types/database.ts`
 - `app/manifest.ts`(2026-08-14 추가, PWA — `MetadataRoute.Manifest` 반환하는 Next.js 특수 파일, `/manifest.webmanifest`로 서빙됨), `public/icons/{icon-192,icon-512,apple-touch-icon}.png`(Playwright로 HTML을 스크린샷 찍어 만든 amber-600 배경 + "QT" 흰 글자 아이콘, `sips`로 사이즈별 리사이즈)
 - `app/layout.tsx`(2026-08-14 수정, PWA): `metadata.appleWebApp`(capable/title/statusBarStyle) + `metadata.icons.apple` + `metadata.other['apple-mobile-web-app-capable']`(Next.js가 표준 `mobile-web-app-capable`만 자동 생성해서, iOS 16.4 미만 호환용으로 구식 태그를 수동 추가) + `export const viewport: Viewport = { themeColor: '#d97706' }` 추가
