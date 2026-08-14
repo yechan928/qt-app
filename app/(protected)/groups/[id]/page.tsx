@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import BackButton from '@/components/BackButton';
 import PostFeedView from '@/components/PostFeedView';
 import GroupMembersPanel from '@/components/GroupMembersPanel';
+import RefreshOnMount from '@/components/RefreshOnMount';
 import type { PostWithAuthor, PostWithProfile } from '@/types/database';
 
 export default async function GroupFeedPage({
@@ -93,6 +94,7 @@ export default async function GroupFeedPage({
 
   return (
     <div className="space-y-4">
+      <RefreshOnMount />
       <BackButton />
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold text-stone-800">{group.name}</h1>

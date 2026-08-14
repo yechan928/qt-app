@@ -1,6 +1,7 @@
 import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import BackButton from '@/components/BackButton';
+import RefreshOnMount from '@/components/RefreshOnMount';
 import PostBody from '@/components/PostBody';
 // 댓글 기능 비활성화 (2026-08-12 사용자 요청) — 복구 시 아래 두 줄 주석 해제
 // import CommentList from '@/components/CommentList';
@@ -51,6 +52,7 @@ export default async function PostDetailPage({
 
   return (
     <div className="space-y-4">
+      <RefreshOnMount />
       <BackButton />
       <PostBody
         post={post}
