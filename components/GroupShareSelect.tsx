@@ -17,13 +17,20 @@ export default function GroupShareSelect({
 
   useEffect(() => {
     const supabase = createClient();
-    supabase
-      .from('group_members')
-      .select('groups(id, name)')
-      .then(({ data }) => {
-        const rows = (data ?? []) as unknown as { groups: GroupOption }[];
-        setGroups(rows.map((r) => r.groups));
-      });
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      // group_members는 2026-08-14부로 "내가 속한 그룹의 다른 멤버 행도" 보이도록 권한이
+      // 넓어져서(그룹원 목록 패널용), user_id로 내 소속 행만 걸러야 그룹이 멤버 수만큼
+      // 중복으로 안 뜬다.
+      supabase
+        .from('group_members')
+        .select('groups(id, name)')
+        .eq('user_id', user.id)
+        .then(({ data }) => {
+          const rows = (data ?? []) as unknown as { groups: GroupOption }[];
+          setGroups(rows.map((r) => r.groups));
+        });
+    });
   }, []);
 
   function toggle(id: string) {
