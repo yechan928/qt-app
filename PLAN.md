@@ -408,7 +408,8 @@ create or replace function create_post_with_shares(
 - `lib/verseRef.ts`, `lib/bibleBooks.ts`
 - `app/login/page.tsx`, `app/auth/callback/route.ts`
 - `app/(protected)/page.tsx`(→ `/groups` 리다이렉트), `today/page.tsx`, `schedule/page.tsx`, `groups/page.tsx`, `groups/[id]/page.tsx`, `posts/new/page.tsx`, `posts/[id]/page.tsx`
-- `components/{KakaoLoginButton,NavBar,BackButton,PostCard,VerseLookup,QtDatePicker,QTCalendar,QTDayView,ScheduleAdminView,QTScheduleForm,QtSectionEditor,PostForm,PostBody,PostActions,CommentList,CommentForm,AmenButton,GroupList,CreateGroupForm,CreateGroupSection,JoinGroupForm,JoinGroupSection,CopyInviteCode,GroupMembersPanel,PostFeedView,GroupShareSelect,ShareGroupModal,DailyNanum,NanumPreview}.tsx`
+- `components/{KakaoLoginButton,NavBar,BackButton,BfcacheRefresh,PostCard,VerseLookup,QtDatePicker,QTCalendar,QTDayView,ScheduleAdminView,QTScheduleForm,QtSectionEditor,PostForm,PostBody,PostActions,CommentList,CommentForm,AmenButton,GroupList,CreateGroupForm,CreateGroupSection,JoinGroupForm,JoinGroupSection,CopyInviteCode,GroupMembersPanel,PostFeedView,GroupShareSelect,ShareGroupModal,DailyNanum,NanumPreview}.tsx`
+- `components/BfcacheRefresh.tsx`(2026-08-14 추가) — `(protected)/layout.tsx`에 마운트되는 빈 렌더(`null`) 컴포넌트. `pageshow` 이벤트의 `event.persisted`가 true(=사파리 bfcache로 복원된 화면)일 때 `router.refresh()` 호출 — 아멘·그룹원 목록처럼 다른 화면에서 바뀐 값이 뒤로가기 시 반영 안 되어 보이던 문제를 레이아웃 레벨에서 한 번에 해결
 - `supabase/migrations/0007_group_member_visibility.sql`(2026-08-14 추가) — `is_group_member()` security definer 함수 + `group_members` SELECT 정책을 "내 소속 행만" → "내가 속한 그룹의 다른 멤버도 조회 가능"으로 완화, DELETE 정책(본인 행만) 신규 추가 → `components/GroupMembersPanel.tsx`(그룹원 목록 + 그룹 나가기 사이드 패널)의 기반
 - `types/database.ts`
 - `app/manifest.ts`(2026-08-14 추가, PWA — `MetadataRoute.Manifest` 반환하는 Next.js 특수 파일, `/manifest.webmanifest`로 서빙됨), `public/icons/{icon-192,icon-512,apple-touch-icon}.png`(Playwright로 HTML을 스크린샷 찍어 만든 amber-600 배경 + "QT" 흰 글자 아이콘, `sips`로 사이즈별 리사이즈)
