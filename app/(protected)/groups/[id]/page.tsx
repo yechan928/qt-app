@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import BackButton from '@/components/BackButton';
 import PostFeedView from '@/components/PostFeedView';
+import GroupMembersPanel from '@/components/GroupMembersPanel';
 import type { PostWithAuthor, PostWithProfile } from '@/types/database';
 
 export default async function GroupFeedPage({
@@ -29,6 +30,14 @@ export default async function GroupFeedPage({
   if (!group) {
     redirect('/groups');
   }
+
+  const { data: memberRows } = await supabase
+    .from('group_members')
+    .select('user_id, profiles(nickname)')
+    .eq('group_id', groupId);
+  const members = (
+    (memberRows ?? []) as unknown as { user_id: string; profiles: { nickname: string } }[]
+  ).map((m) => ({ userId: m.user_id, nickname: m.profiles.nickname }));
 
   const { data: shares } = await supabase
     .from('post_shares')
@@ -87,12 +96,20 @@ export default async function GroupFeedPage({
       <BackButton />
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold text-stone-800">{group.name}</h1>
-        <Link
-          href={`/posts/new?group=${groupId}`}
-          className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white"
-        >
-          나눔 쓰기
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/posts/new?group=${groupId}`}
+            className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white"
+          >
+            나눔 쓰기
+          </Link>
+          <GroupMembersPanel
+            groupId={groupId}
+            groupName={group.name}
+            userId={user.id}
+            members={members}
+          />
+        </div>
       </div>
 
       <PostFeedView posts={postsWithMeta} titleByDate={titleByDate} />
