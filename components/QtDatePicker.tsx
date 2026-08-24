@@ -10,15 +10,21 @@ import type { QtSchedule } from '@/types/database';
 // `나눔 쓰기`와 관리자 `말씀 등록` 페이지 양쪽에서 재사용한다(PLAN.md 참고).
 export default function QtDatePicker({
   onChange,
+  initialDate,
 }: {
   onChange: (date: string, schedule: QtSchedule | null) => void;
+  // 지정 안 하면 오늘로 시작(나눔 쓰기 등 기존 동작 그대로). 관리자 말씀 등록처럼 저장 후
+  // 이 컴포넌트가 다시 마운트될 때, 작업하던 날짜에 그대로 머물게 하려면 넘겨준다
+  // (안 넘기면 매번 오늘로 초기화되면서 미리 등록하던 미래 날짜를 놓치기 쉬움).
+  initialDate?: string;
 }) {
   const today = todayDateString();
-  const now = new Date();
+  const start = initialDate ?? today;
+  const [startYear, startMonth] = start.split('-').map(Number);
 
-  const [viewYear, setViewYear] = useState(now.getFullYear());
-  const [viewMonth, setViewMonth] = useState(now.getMonth());
-  const [selectedDate, setSelectedDate] = useState(today);
+  const [viewYear, setViewYear] = useState(startYear);
+  const [viewMonth, setViewMonth] = useState(startMonth - 1);
+  const [selectedDate, setSelectedDate] = useState(start);
   const [markedDates, setMarkedDates] = useState<Set<string>>(new Set());
 
   useEffect(() => {

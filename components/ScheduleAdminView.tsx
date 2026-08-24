@@ -19,7 +19,7 @@ export default function ScheduleAdminView({ userId }: { userId: string }) {
 
   return (
     <div className="space-y-4">
-      <QtDatePicker key={refreshKey} onChange={handleDateChange} />
+      <QtDatePicker key={refreshKey} onChange={handleDateChange} initialDate={selectedDate} />
       <QTScheduleForm
         key={`${selectedDate}-${refreshKey}`}
         date={selectedDate}
