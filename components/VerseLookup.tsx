@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { parseVerseRef, VERSE_REF_HELP_TEXT } from '@/lib/verseRef';
+import { joinVerseRows } from '@/lib/bibleVerses';
 
 export type VerseLookupResult = { ref: string; text: string };
 
@@ -32,23 +33,23 @@ export default function VerseLookup({ initialRef = '', onResolved }: Props) {
     const supabase = createClient();
     const { data, error: dbError } = await supabase
       .from('bible_verses')
-      .select('verse, text')
+      .select('chapter, verse, text')
       .eq('book', parsed.book)
-      .eq('chapter', parsed.chapter)
-      .gte('verse', parsed.verseStart)
-      .lte('verse', parsed.verseEnd)
+      .gte('chapter', parsed.chapterStart)
+      .lte('chapter', parsed.chapterEnd)
+      .order('chapter', { ascending: true })
       .order('verse', { ascending: true });
 
     setLoading(false);
 
-    if (dbError || !data || data.length === 0) {
+    const text = !dbError && data ? joinVerseRows(data, parsed) : null;
+    if (!text) {
       setError('해당 구절을 찾을 수 없어요. 참조를 다시 확인해주세요.');
       setVerseText(null);
       onResolved(null);
       return;
     }
 
-    const text = data.map((row) => `${row.verse}. ${row.text}`).join('\n');
     setVerseText(text);
     onResolved({ ref: ref.trim(), text });
   }
@@ -75,7 +76,7 @@ export default function VerseLookup({ initialRef = '', onResolved }: Props) {
           type="text"
           value={refInput}
           onChange={(e) => handleChange(e.target.value)}
-          placeholder="예: 창세기 1:1-10"
+          placeholder="예: 창세기 1:1-10 (장이 걸치면 신명기 11:26-12:7)"
           className="flex-1 rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none"
         />
         <button

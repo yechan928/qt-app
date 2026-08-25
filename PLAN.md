@@ -156,29 +156,35 @@ create table qt_schedule (
 
 ## D. 구절 참조 파싱 (`lib/verseRef.ts`)
 
-**입력 형식**: `창세기 1:1-10` 또는 `창세기 1:1`
+**입력 형식**: `창세기 1:1-10`(같은 장) 또는 `창세기 1:1` 또는 `신명기 11:26-12:7`(**장이 걸침**, 2026-08-25 추가 — 실사용 중 "오늘 QT가 11:26~12:7처럼 장을 넘나든다"는 걸 발견해서 지원 필요해짐)
 
 ```ts
-const VERSE_REF_RE = /^([가-힣]+)\s*(\d+)\s*:\s*(\d+)(?:\s*-\s*(\d+))?$/;
+const VERSE_REF_RE = /^([가-힣0-9]+)\s*(\d+)\s*:\s*(\d+)(?:\s*-\s*(?:(\d+)\s*:\s*)?(\d+))?$/;
 
-export type ParsedRef = { book: string; chapter: number; verseStart: number; verseEnd: number };
+export type ParsedRef = {
+  book: string;
+  chapterStart: number;
+  verseStart: number;
+  chapterEnd: number;
+  verseEnd: number;
+};
 
 export function parseVerseRef(raw: string): ParsedRef | null {
   const m = raw.trim().match(VERSE_REF_RE);
   if (!m) return null;
-  const [, book, chapter, vStart, vEnd] = m;
-  return {
-    book,
-    chapter: Number(chapter),
-    verseStart: Number(vStart),
-    verseEnd: vEnd ? Number(vEnd) : Number(vStart),
-  };
+  const [, book, chapterStartRaw, verseStartRaw, chapterEndRaw, verseEndRaw] = m;
+  const chapterStart = Number(chapterStartRaw);
+  const verseStart = Number(verseStartRaw);
+  const chapterEnd = chapterEndRaw ? Number(chapterEndRaw) : chapterStart;
+  const verseEnd = verseEndRaw ? Number(verseEndRaw) : verseStart;
+  return { book, chapterStart, verseStart, chapterEnd, verseEnd };
 }
 ```
 
 - `lib/bibleBooks.ts`에 성경 66권 한글 이름 배열 → `book`이 목록에 없으면 파싱 실패 취급.
-- 원문 조회: `bible_verses`에서 `book`/`chapter`/`verse between verseStart and verseEnd` 조회 → `verse` 오름차순 정렬 후 줄바꿈으로 join.
-- 파싱 실패·구절 없음 → "구절 형식을 확인해주세요 (예: 창세기 1:1-10)" 에러 문구, throw 금지.
+- 원문 조회(`lib/bibleVerses.ts`의 `joinVerseRows`): `bible_verses`에서 `book` + `chapter between chapterStart and chapterEnd`로 넉넉하게 조회 → 시작/끝 장에서 범위 밖 절만 클라이언트에서 잘라내고 절 오름차순으로 join. 장이 걸치면(`chapterStart !== chapterEnd`) 절 번호 앞에 장 번호도 붙여서(`"12:1. ..."`) 어디서 장이 바뀌는지 구분되게 함, 안 걸치면 기존처럼 절 번호만.
+- 파싱 실패·구절 없음 → "구절 형식을 확인해주세요 (예: 창세기 1:1-10, 장이 걸치면 신명기 11:26-12:7)" 에러 문구, throw 금지.
+- `parseVerseRange`("16-19", 소주제용 절만) / `parseChapterVerseRange`("11:26-12:7", 소주제가 장을 걸칠 때용) 두 개의 보조 파서도 같은 파일에 있음 — `QtSectionEditor.tsx`에서 전체 구절이 한 장인지 여러 장인지에 따라 골라 씀.
 
 ---
 
@@ -233,13 +239,17 @@ export function parseVerseRef(raw: string): ParsedRef | null {
 - `components/NavBar.tsx` — 로그인 후 상단 고정 네비게이션: 피드 / **나눔**(2026-08-12부로 "나눔 쓰기"에서 라벨 축약, 경로는 그대로 `/posts/new`) / 오늘의 QT / (관리자만) 말씀 등록 / 로그아웃. `isAdmin` prop으로 마지막 링크 노출 여부 결정
 - `components/BackButton.tsx` (2026-08-12 추가, client) — `router.back()`으로 이전 화면으로 이동하는 "← 뒤로" 버튼. 그룹 화면(`groups/[id]`)·나눔 상세(`posts/[id]`) 등 "더 들어간" 화면 상단에서만 사용, 상단 탭으로 도달하는 최상위 화면에는 안 씀(이미 네비게이션이 있어서)
 - `components/PostCard.tsx` — 작성자·날짜·구절 참조·본문 요약·아멘 수 (댓글 수 배지는 2026-08-12부로 주석 처리, §K 버전 히스토리 9차 이전 댓글 비활성화 결정 참고)
-- `components/VerseLookup.tsx` — 구절 참조 입력(책+장+절 전체) + `lib/verseRef.ts`의 `parseVerseRef` 파싱 + `bible_verses` 조회 + 원문 표시. `PostForm`과 `QTScheduleForm`의 "전체 말씀 구절" 입력란에서 재사용(2026-08-13부터 `QtSectionEditor`는 더 이상 이 컴포넌트를 쓰지 않음 — 아래 참고)
+- `components/VerseLookup.tsx` — 구절 참조 입력(책+장+절 전체, 2026-08-25부터 장이 걸치는 것도 입력 가능) + `lib/verseRef.ts`의 `parseVerseRef` 파싱 + `lib/bibleVerses.ts`의 `joinVerseRows`로 원문 조립 + 표시. `PostForm`과 `QTScheduleForm`의 "전체 말씀 구절" 입력란에서 재사용(2026-08-13부터 `QtSectionEditor`는 더 이상 이 컴포넌트를 쓰지 않음 — 아래 참고)
 - `components/QtDatePicker.tsx` — 캘린더+월별 일정조회 로직을 캡슐화한 공용 컴포넌트. 날짜를 고르면 그 날짜의 `qt_schedule`을 조회해 `onChange(date, schedule)`로 부모에 알림. `PostForm`과 `ScheduleAdminView` 양쪽에서 재사용(내부적으로 `QTCalendar` 사용)
 - `components/QTCalendar.tsx` — 월간 캘린더 UI 자체(순수 프레젠테이션), `QtDatePicker`가 상태를 관리하고 이 컴포넌트에 props로 넘김
 - `components/QTDayView.tsx` — 선택된 날짜의 주제+구절(소주제 구분 포함)+본문요약+중보기도 표시. `today/page.tsx`와 관리자 미리보기 등에서 재사용
 - `components/ScheduleAdminView.tsx` — `/schedule` 페이지 전용 client 컴포넌트, `QtDatePicker` + `QTScheduleForm` 조합
 - `components/QTScheduleForm.tsx` — 관리자 전용 일정 등록/수정 폼(주제·전체구절·소주제 목록·본문요약·중보기도)
-- `components/QtSectionEditor.tsx` (2026-08-13 UX 개선) — 소주제(제목+구절) 여러 개를 추가/삭제하는 반복 입력 UI, `QTScheduleForm` 내부에서 사용. 소주제 구절은 항상 위 "전체 말씀 구절"과 같은 책/장 안에서 절만 나뉜다는 점에 착안해, 매번 "신명기 6:16-19"를 통째로 입력하지 않고 **절 번호만**(예: `16-19`) 입력받음 — `overallRef`(부모의 전체 구절 문자열)를 `parseVerseRef`로 파싱해 책/장을 얻고, 입력값은 새 `lib/verseRef.ts`의 `parseVerseRange`로 파싱(`"16-19"` 또는 `"16"`)해 합친 뒤 `bible_verses`를 직접 조회(`VerseLookup` 재사용 안 함, 이 조회 로직은 컴포넌트 내부에 있음). 절 범위가 전체 구절의 시작~끝 범위를 벗어나면 에러 문구로 막음. 전체 구절이 아직 안 정해졌으면(`overallRef` 파싱 실패) 소주제 입력 자체가 비활성화되고 안내 문구 표시
+- `components/QtSectionEditor.tsx` (2026-08-13 UX 개선, 2026-08-25 장 걸침 대응) — 소주제(제목+구절) 여러 개를 추가/삭제하는 반복 입력 UI, `QTScheduleForm` 내부에서 사용. `overallRef`를 `parseVerseRef`로 파싱해 `chapterStart === chapterEnd`인지로 모드를 나눔:
+  - **전체 구절이 한 장**(`singleChapter`)이면 기존 그대로 — 접두어로 "책 장:"을 보여주고 **절 번호만**(예: `16-19`) 입력받아 `parseVerseRange`로 파싱, 전체 구절의 시작~끝 절 범위를 벗어나면 에러
+  - **전체 구절이 여러 장에 걸치면** 어느 장인지 알 수 없으므로 접두어는 "책"까지만 보여주고 **"장:절" 형식**(예: `11:26-29`, 장을 또 넘기면 `11:26-12:2`)으로 입력받아 `parseChapterVerseRange`로 파싱(범위 검증은 생략 — 책만 같으면 허용, 과도한 복잡도 방지)
+  - 두 모드 모두 `bible_verses`를 `book` + `chapter` 범위로 조회한 뒤 `lib/bibleVerses.ts`의 `joinVerseRows`로 절 단위로 정확히 잘라 합침(`VerseLookup` 재사용 안 함, 조회 로직은 컴포넌트 내부에 있음)
+  - 전체 구절이 아직 안 정해졌으면(`overallRef` 파싱 실패) 소주제 입력 자체가 비활성화되고 안내 문구 표시
 - `components/AmenButton.tsx` — 클릭 시 낙관적 UI 업데이트 후 insert/delete
 - `components/CommentList.tsx`, `components/CommentForm.tsx` — **2026-08-12부로 미사용**(사용자 요청으로 댓글 기능 비활성화). 파일은 삭제하지 않고 그대로 둠, 호출부만 주석 처리(§4-4 비활성화 메모 참고). 복구 시 이 두 컴포넌트를 그대로 다시 import
 - `components/PostBody.tsx` — 본문 표시 ↔ `PostForm`(수정 모드) 전환을 담당하는 client 컴포넌트. `posts/[id]` 페이지(Server Component)는 이 컴포넌트에 데이터만 내려주고 상태는 여기서 관리. **2026-08-12부터**: 구절 원문 표시를 없애고, 그 날짜의 `qt_schedule.title`(부모가 조회해 `qtTitle` prop으로 내려줌) + 나눔 본문을 박스 영역으로 보여줌
@@ -405,7 +415,7 @@ create or replace function create_post_with_shares(
 - `supabase/migrations/0001_init.sql`, `0002_qt_schedule_sections.sql`, `0003_groups.sql`, `0004_post_shares.sql`, `0005_optional_sharing.sql`, `0006_add_shares_to_existing_post.sql`
 - `supabase/seed/import_bible.ts`
 - `lib/supabase/client.ts`, `lib/supabase/server.ts`
-- `lib/verseRef.ts`, `lib/bibleBooks.ts`
+- `lib/verseRef.ts`, `lib/bibleBooks.ts`, `lib/bibleVerses.ts`(2026-08-25 추가 — 장 걸친 구절을 절 단위로 잘라 합치는 `joinVerseRows`)
 - `app/login/page.tsx`, `app/auth/callback/route.ts`
 - `app/(protected)/page.tsx`(→ `/groups` 리다이렉트), `today/page.tsx`, `schedule/page.tsx`, `groups/page.tsx`, `groups/[id]/page.tsx`, `posts/new/page.tsx`, `posts/[id]/page.tsx`
 - `components/{KakaoLoginButton,NavBar,BackButton,BfcacheRefresh,RefreshOnMount,PostCard,VerseLookup,QtDatePicker,QTCalendar,QTDayView,ScheduleAdminView,QTScheduleForm,QtSectionEditor,PostForm,PostBody,PostActions,CommentList,CommentForm,AmenButton,GroupList,CreateGroupForm,CreateGroupSection,JoinGroupForm,JoinGroupSection,CopyInviteCode,GroupMembersPanel,PostFeedView,GroupShareSelect,ShareGroupModal,DailyNanum,NanumPreview}.tsx`
