@@ -52,7 +52,12 @@ export default function DailyNanum({
 
   return (
     <div className="space-y-4">
-      <QtDatePicker onChange={handleDateChange} />
+      <QtDatePicker
+        onChange={handleDateChange}
+        onLoadingChange={(isLoading) => {
+          if (isLoading) setLoaded(false);
+        }}
+      />
 
       {!loaded ? (
         <p className="text-sm text-stone-400">불러오는 중...</p>
