@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import VerseLookup, { type VerseLookupResult } from '@/components/VerseLookup';
 import ShareGroupModal from '@/components/ShareGroupModal';
+import QtSectionCard from '@/components/QtSectionCard';
 import type { Post, QtSection } from '@/types/database';
 
 type Props =
@@ -114,12 +115,14 @@ export default function PostForm(props: Props) {
           {props.qtSections.length > 0 ? (
             <div className="mt-4 space-y-5">
               {props.qtSections.map((section, i) => (
-                <div key={i}>
-                  <h3 className="mb-2 font-medium text-amber-700">{section.heading}</h3>
-                  <div className="whitespace-pre-line rounded-lg bg-stone-100 p-4 text-sm leading-relaxed text-stone-700">
-                    {section.verse_text}
-                  </div>
-                </div>
+                <QtSectionCard
+                  key={i}
+                  heading={section.heading}
+                  headingClassName="mb-2 font-medium text-amber-700"
+                  verseText={section.verse_text}
+                  verseBoxClassName="whitespace-pre-line rounded-lg bg-stone-100 p-4 text-sm leading-relaxed text-stone-700"
+                  question={section.question}
+                />
               ))}
             </div>
           ) : (

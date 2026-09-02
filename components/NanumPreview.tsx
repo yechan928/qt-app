@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import ShareGroupModal from '@/components/ShareGroupModal';
+import QtSectionCard from '@/components/QtSectionCard';
 import type { Post, QtSection } from '@/types/database';
 
 // "나눔 쓰기" 화면에서 이미 그 날짜에 쓴 글이 있을 때 보여주는 읽기 전용 카드.
@@ -51,12 +52,14 @@ export default function NanumPreview({
       {sections.length > 0 ? (
         <div className="space-y-4">
           {sections.map((section, i) => (
-            <div key={i}>
-              <h4 className="mb-1 text-sm font-medium text-amber-700">{section.heading}</h4>
-              <div className="whitespace-pre-line rounded-lg bg-stone-100 p-4 text-sm leading-relaxed text-stone-600">
-                {section.verse_text}
-              </div>
-            </div>
+            <QtSectionCard
+              key={i}
+              heading={section.heading}
+              headingClassName="mb-1 text-sm font-medium text-amber-700"
+              verseText={section.verse_text}
+              verseBoxClassName="whitespace-pre-line rounded-lg bg-stone-100 p-4 text-sm leading-relaxed text-stone-600"
+              question={section.question}
+            />
           ))}
         </div>
       ) : (

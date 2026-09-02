@@ -70,6 +70,7 @@ export type QtSection = {
   heading: string;
   verse_ref: string;
   verse_text: string;
+  question?: string;
 };
 
 export type QtSchedule = {

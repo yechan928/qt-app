@@ -55,6 +55,10 @@ export default function QtSectionEditor({ sections, onChange, overallRef }: Prop
     onChange(sections.map((s, i) => (i === index ? { ...s, heading } : s)));
   }
 
+  function updateQuestion(index: number, question: string) {
+    onChange(sections.map((s, i) => (i === index ? { ...s, question } : s)));
+  }
+
   function updateRangeInput(index: number, value: string) {
     setRangeInputs((prev) => prev.map((v, i) => (i === index ? value : v)));
     setErrors((prev) => prev.map((e, i) => (i === index ? null : e)));
@@ -176,6 +180,13 @@ export default function QtSectionEditor({ sections, onChange, overallRef }: Prop
               {section.verse_text}
             </div>
           )}
+          <textarea
+            value={section.question ?? ''}
+            onChange={(e) => updateQuestion(index, e.target.value)}
+            placeholder="적용 질문 (선택, 입력하면 '?' 버튼을 눌러야 보이는 형태로 표시됨)"
+            rows={2}
+            className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none"
+          />
         </div>
       ))}
       <button
