@@ -93,6 +93,10 @@ export default function NanumPreview({
         <ShareGroupModal
           initialSelected={[]}
           submitting={submitting}
+          kakaoShare={{
+            text: [title, post.verse_ref, '', post.content].join('\n'),
+            onShared: (groupIds) => (groupIds.length > 0 ? handleShare(groupIds) : setShowShareModal(false)),
+          }}
           onConfirm={handleShare}
           onClose={() => setShowShareModal(false)}
         />

@@ -188,6 +188,10 @@ export default function PostForm(props: Props) {
         <ShareGroupModal
           initialSelected={props.preselectedGroupId ? [props.preselectedGroupId] : []}
           submitting={submitting}
+          kakaoShare={{
+            text: [props.qtTitle, props.qtVerseRef, '', content.trim()].join('\n'),
+            onShared: (groupIds) => saveOrShare(groupIds),
+          }}
           onConfirm={(groupIds) => saveOrShare(groupIds)}
           onClose={() => setShowShareModal(false)}
         />
