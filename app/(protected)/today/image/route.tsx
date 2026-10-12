@@ -12,20 +12,24 @@ import { todayDateString } from '@/lib/date';
 const fontRegular = readFile(join(process.cwd(), 'public/fonts/Pretendard-Regular.otf'));
 const fontBold = readFile(join(process.cwd(), 'public/fonts/Pretendard-Bold.otf'));
 
+const CARD_WIDTH = 1080;
+const CONTENT_WIDTH = CARD_WIDTH - 72 * 2;
+
 function formatDate(dateStr: string) {
   const d = new Date(dateStr);
   const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
   return `${d.getMonth() + 1}월 ${d.getDate()}일 (${weekdays[d.getDay()]})`;
 }
 
-// 길면 그냥 max 글자에서 뚝 자르면 단어·문장 중간이 잘려 어색해 보여서(2026-10-13 피드백),
-// max 안에서 가장 가까운 공백 지점까지만 자른다. 공백이 없으면 어쩔 수 없이 그대로 자름.
-function truncate(text: string, max: number) {
-  const trimmed = text.trim();
-  if (trimmed.length <= max) return trimmed;
-  const cut = trimmed.slice(0, max);
-  const lastSpace = cut.lastIndexOf(' ');
-  return `${lastSpace > max * 0.6 ? cut.slice(0, lastSpace) : cut}…`;
+// ImageResponse는 캔버스 크기를 고정으로 지정해야 해서(콘텐츠에 맞춰 자동으로 안 늘어남),
+// 본문요약·중보기도를 절대 안 잘리게 하려면 글자 수를 보고 카드 높이를 미리 계산해야 한다
+// (2026-10-13 피드백: "아무리 길어도 잘리면 안 됨"). 완벽한 측정은 아니고 한글 기준 대략적인
+// 추정치 — 실제 폭보다 넉넉하게 잡아서 줄바꿈이 예상보다 한 줄 더 생겨도 잘리지 않게 한다.
+function estimateLines(text: string, fontSize: number, maxWidth: number) {
+  const charsPerLine = Math.max(1, Math.floor(maxWidth / (fontSize * 1.05)));
+  return text
+    .split('\n')
+    .reduce((sum, line) => sum + Math.max(1, Math.ceil(line.length / charsPerLine)), 0);
 }
 
 export async function GET() {
@@ -47,6 +51,10 @@ export async function GET() {
     .maybeSingle();
 
   const [regular, bold] = await Promise.all([fontRegular, fontBold]);
+  const fonts = [
+    { name: 'Pretendard', data: regular, weight: 400 as const, style: 'normal' as const },
+    { name: 'Pretendard', data: bold, weight: 700 as const, style: 'normal' as const },
+  ];
 
   if (!schedule) {
     return new ImageResponse(
@@ -67,14 +75,7 @@ export async function GET() {
           아직 등록된 QT가 없어요.
         </div>
       ),
-      {
-        width: 1080,
-        height: 1080,
-        fonts: [
-          { name: 'Pretendard', data: regular, weight: 400, style: 'normal' },
-          { name: 'Pretendard', data: bold, weight: 700, style: 'normal' },
-        ],
-      }
+      { width: CARD_WIDTH, height: 1080, fonts }
     );
   }
 
@@ -82,6 +83,26 @@ export async function GET() {
   // 제목 → 본문요약 → 중보기도 순으로 보여주고, 구절은 참조만 제목 아래 작게 표시.
   // 요약·중보기도가 둘 다 없는 날짜만 구절 일부를 대신 보여줌(카드가 비어 보이지 않도록 하는 안전망).
   const hasReflection = Boolean(schedule.summary || schedule.prayer);
+  const summaryFontSize = 30;
+  const prayerFontSize = 30;
+  const fallbackVerseFontSize = 30;
+
+  // 헤더+제목+구절참조+여백+푸터 등 고정 요소 높이(대략) + 본문 내용 줄 수만큼 더해 전체 카드 높이를 정한다.
+  const fixedHeight = 420;
+  const summaryLines = schedule.summary ? estimateLines(schedule.summary, summaryFontSize, CONTENT_WIDTH) : 0;
+  const prayerLines = schedule.prayer ? estimateLines(schedule.prayer, prayerFontSize, CONTENT_WIDTH) : 0;
+  const fallbackLines = !hasReflection
+    ? estimateLines(schedule.verse_text, fallbackVerseFontSize, CONTENT_WIDTH)
+    : 0;
+  const contentHeight =
+    summaryLines * summaryFontSize * 1.8 +
+    prayerLines * prayerFontSize * 1.8 +
+    fallbackLines * fallbackVerseFontSize * 1.8 +
+    (schedule.summary ? 40 : 0) +
+    (schedule.prayer ? 40 : 0);
+  // 글자 수 기반 추정이라 실제 줄바꿈과 완전히 일치하진 않는다 — 모자라서 잘리는 것보다
+  // 여백이 조금 남는 쪽이 안전해서 80px 여유를 더 둔다.
+  const cardHeight = Math.max(900, Math.round(fixedHeight + contentHeight + 80));
 
   return new ImageResponse(
     (
@@ -91,7 +112,6 @@ export async function GET() {
           height: '100%',
           display: 'flex',
           flexDirection: 'column',
-          justifyContent: 'space-between',
           backgroundColor: '#ffffff',
           fontFamily: 'Pretendard',
           padding: '80px 72px',
@@ -107,9 +127,7 @@ export async function GET() {
           }}
         >
           <div style={{ fontSize: 28, color: '#a8a29e' }}>QT 나눔</div>
-          <div style={{ fontSize: 28, color: '#d97706', fontWeight: 700 }}>
-            {formatDate(today)}
-          </div>
+          <div style={{ fontSize: 28, color: '#d97706', fontWeight: 700 }}>{formatDate(today)}</div>
         </div>
 
         <div
@@ -117,33 +135,72 @@ export async function GET() {
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            textAlign: 'center',
-            gap: 40,
-            marginTop: 96,
+            gap: 36,
+            marginTop: 64,
           }}
         >
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              textAlign: 'center',
+              gap: 10,
+            }}
+          >
             <div style={{ display: 'flex', fontSize: 52, fontWeight: 700, color: '#292524', lineHeight: 1.4 }}>
               {schedule.title}
             </div>
             <div style={{ display: 'flex', fontSize: 24, color: '#d97706' }}>{schedule.verse_ref}</div>
           </div>
 
+          {/* 본문요약·중보기도는 길어질 수 있어 가운데 정렬보다 왼쪽 정렬이 읽기 편하다(2026-10-13 피드백).
+              whiteSpace: pre-line으로 관리자가 입력한 줄바꿈도 그대로 살린다. */}
           {schedule.summary && (
-            <div style={{ display: 'flex', fontSize: 30, color: '#78716c', lineHeight: 1.7 }}>
-              {truncate(schedule.summary, 110)}
+            <div
+              style={{
+                display: 'flex',
+                width: '100%',
+                fontSize: summaryFontSize,
+                color: '#b45309',
+                lineHeight: 1.8,
+                textAlign: 'left',
+                whiteSpace: 'pre-line',
+              }}
+            >
+              {schedule.summary.trim()}
             </div>
           )}
 
           {schedule.prayer && (
-            <div style={{ display: 'flex', fontSize: 30, color: '#b45309', lineHeight: 1.7 }}>
-              {truncate(schedule.prayer, 110)}
+            <div
+              style={{
+                display: 'flex',
+                width: '100%',
+                fontSize: prayerFontSize,
+                color: '#78716c',
+                lineHeight: 1.8,
+                textAlign: 'left',
+                whiteSpace: 'pre-line',
+              }}
+            >
+              {schedule.prayer.trim()}
             </div>
           )}
 
           {!hasReflection && (
-            <div style={{ display: 'flex', fontSize: 30, color: '#b45309', lineHeight: 1.7 }}>
-              {truncate(schedule.verse_text, 110)}
+            <div
+              style={{
+                display: 'flex',
+                width: '100%',
+                fontSize: fallbackVerseFontSize,
+                color: '#b45309',
+                lineHeight: 1.8,
+                textAlign: 'left',
+                whiteSpace: 'pre-line',
+              }}
+            >
+              {schedule.verse_text.trim()}
             </div>
           )}
         </div>
@@ -152,6 +209,7 @@ export async function GET() {
           style={{
             display: 'flex',
             justifyContent: 'center',
+            marginTop: 'auto',
             paddingTop: 28,
             borderTop: '2px solid #e7e5e4',
             fontSize: 22,
@@ -162,13 +220,6 @@ export async function GET() {
         </div>
       </div>
     ),
-    {
-      width: 1080,
-      height: 1080,
-      fonts: [
-        { name: 'Pretendard', data: regular, weight: 400, style: 'normal' },
-        { name: 'Pretendard', data: bold, weight: 700, style: 'normal' },
-      ],
-    }
+    { width: CARD_WIDTH, height: cardHeight, fonts }
   );
 }
