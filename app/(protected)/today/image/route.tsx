@@ -18,9 +18,14 @@ function formatDate(dateStr: string) {
   return `${d.getMonth() + 1}월 ${d.getDate()}일 (${weekdays[d.getDay()]})`;
 }
 
+// 길면 그냥 max 글자에서 뚝 자르면 단어·문장 중간이 잘려 어색해 보여서(2026-10-13 피드백),
+// max 안에서 가장 가까운 공백 지점까지만 자른다. 공백이 없으면 어쩔 수 없이 그대로 자름.
 function truncate(text: string, max: number) {
   const trimmed = text.trim();
-  return trimmed.length > max ? `${trimmed.slice(0, max)}…` : trimmed;
+  if (trimmed.length <= max) return trimmed;
+  const cut = trimmed.slice(0, max);
+  const lastSpace = cut.lastIndexOf(' ');
+  return `${lastSpace > max * 0.6 ? cut.slice(0, lastSpace) : cut}…`;
 }
 
 export async function GET() {
@@ -73,7 +78,10 @@ export async function GET() {
     );
   }
 
-  const bodyText = schedule.prayer || schedule.summary;
+  // 본문 전체 구절은 절 번호가 섞여 있고 길어서 카드에 넣으면 중간에 끊겨 어색함(2026-10-13 피드백).
+  // 제목 → 본문요약 → 중보기도 순으로 보여주고, 구절은 참조만 제목 아래 작게 표시.
+  // 요약·중보기도가 둘 다 없는 날짜만 구절 일부를 대신 보여줌(카드가 비어 보이지 않도록 하는 안전망).
+  const hasReflection = Boolean(schedule.summary || schedule.prayer);
 
   return new ImageResponse(
     (
@@ -114,32 +122,30 @@ export async function GET() {
             marginTop: 96,
           }}
         >
-          <div style={{ display: 'flex', fontSize: 52, fontWeight: 700, color: '#292524', lineHeight: 1.4 }}>
-            {schedule.title}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+            <div style={{ display: 'flex', fontSize: 52, fontWeight: 700, color: '#292524', lineHeight: 1.4 }}>
+              {schedule.title}
+            </div>
+            <div style={{ display: 'flex', fontSize: 24, color: '#d97706' }}>{schedule.verse_ref}</div>
           </div>
 
-          {bodyText && (
+          {schedule.summary && (
             <div style={{ display: 'flex', fontSize: 30, color: '#78716c', lineHeight: 1.7 }}>
-              {truncate(bodyText, 110)}
+              {truncate(schedule.summary, 110)}
             </div>
           )}
 
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 16,
-              marginTop: 12,
-            }}
-          >
-            <div style={{ display: 'flex', fontSize: 32, color: '#b45309', lineHeight: 1.6 }}>
-              {truncate(schedule.verse_text, 140)}
+          {schedule.prayer && (
+            <div style={{ display: 'flex', fontSize: 30, color: '#b45309', lineHeight: 1.7 }}>
+              {truncate(schedule.prayer, 110)}
             </div>
-            <div style={{ display: 'flex', fontSize: 26, color: '#d97706' }}>
-              ({schedule.verse_ref})
+          )}
+
+          {!hasReflection && (
+            <div style={{ display: 'flex', fontSize: 30, color: '#b45309', lineHeight: 1.7 }}>
+              {truncate(schedule.verse_text, 110)}
             </div>
-          </div>
+          )}
         </div>
 
         <div
