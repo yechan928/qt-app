@@ -84,7 +84,8 @@ export async function GET() {
   // 요약·중보기도가 둘 다 없는 날짜만 구절 일부를 대신 보여줌(카드가 비어 보이지 않도록 하는 안전망).
   const hasReflection = Boolean(schedule.summary || schedule.prayer);
   const summaryFontSize = 30;
-  const prayerFontSize = 30;
+  // 중보기도는 본문요약과 구분되도록 라벨("오늘의 기도")을 달고 글씨도 좀 더 작게(2026-10-13 2차 피드백).
+  const prayerFontSize = 26;
   const fallbackVerseFontSize = 30;
 
   // 헤더+제목+구절참조+여백+푸터 등 고정 요소 높이(대략) + 본문 내용 줄 수만큼 더해 전체 카드 높이를 정한다.
@@ -99,7 +100,7 @@ export async function GET() {
     prayerLines * prayerFontSize * 1.8 +
     fallbackLines * fallbackVerseFontSize * 1.8 +
     (schedule.summary ? 40 : 0) +
-    (schedule.prayer ? 40 : 0);
+    (schedule.prayer ? 80 : 0); // "오늘의 기도" 라벨 한 줄만큼 여유 추가
   // 글자 수 기반 추정이라 실제 줄바꿈과 완전히 일치하진 않는다 — 모자라서 잘리는 것보다
   // 여백이 조금 남는 쪽이 안전해서 80px 여유를 더 둔다.
   const cardHeight = Math.max(900, Math.round(fixedHeight + contentHeight + 80));
@@ -154,8 +155,8 @@ export async function GET() {
             <div style={{ display: 'flex', fontSize: 24, color: '#d97706' }}>{schedule.verse_ref}</div>
           </div>
 
-          {/* 본문요약·중보기도는 길어질 수 있어 가운데 정렬보다 왼쪽 정렬이 읽기 편하다(2026-10-13 피드백).
-              whiteSpace: pre-line으로 관리자가 입력한 줄바꿈도 그대로 살린다. */}
+          {/* whiteSpace: pre-line으로 관리자가 입력한 줄바꿈은 그대로 살리되, 가운데 정렬이 더 보기
+              좋다는 피드백(2026-10-13 2차)으로 되돌림. */}
           {schedule.summary && (
             <div
               style={{
@@ -164,7 +165,7 @@ export async function GET() {
                 fontSize: summaryFontSize,
                 color: '#b45309',
                 lineHeight: 1.8,
-                textAlign: 'left',
+                textAlign: 'center',
                 whiteSpace: 'pre-line',
               }}
             >
@@ -176,15 +177,28 @@ export async function GET() {
             <div
               style={{
                 display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
                 width: '100%',
-                fontSize: prayerFontSize,
-                color: '#78716c',
-                lineHeight: 1.8,
-                textAlign: 'left',
-                whiteSpace: 'pre-line',
+                gap: 8,
               }}
             >
-              {schedule.prayer.trim()}
+              <div style={{ display: 'flex', fontSize: 22, fontWeight: 700, color: '#a8a29e' }}>
+                오늘의 기도
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  width: '100%',
+                  fontSize: prayerFontSize,
+                  color: '#78716c',
+                  lineHeight: 1.8,
+                  textAlign: 'center',
+                  whiteSpace: 'pre-line',
+                }}
+              >
+                {schedule.prayer.trim()}
+              </div>
             </div>
           )}
 
@@ -196,7 +210,7 @@ export async function GET() {
                 fontSize: fallbackVerseFontSize,
                 color: '#b45309',
                 lineHeight: 1.8,
-                textAlign: 'left',
+                textAlign: 'center',
                 whiteSpace: 'pre-line',
               }}
             >
