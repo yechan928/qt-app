@@ -1,4 +1,5 @@
 import QtSectionCard from '@/components/QtSectionCard';
+import ShareTodayImage from '@/components/ShareTodayImage';
 import type { QtSchedule } from '@/types/database';
 
 function formatDate(dateStr: string) {
@@ -58,6 +59,10 @@ export default function QTDayView({
               </p>
             </div>
           )}
+
+          <div className="mt-6">
+            <ShareTodayImage date={date} />
+          </div>
         </>
       ) : (
         <p className="mt-6 py-6 text-center text-sm text-stone-400">
