@@ -133,13 +133,18 @@ export async function GET() {
           <div style={{ fontSize: 28, color: '#d97706', fontWeight: 700 }}>{formatDate(today)}</div>
         </div>
 
+        {/* flex: 1 + justifyContent: center로 이 블록을 헤더~푸터 사이 남는 공간 전체에서
+            세로로 가운데 정렬한다. 이전엔 콘텐츠가 위에 붙고 남는 여백이 푸터 바로 위에
+            전부 몰려서 "위로 쏠린" 느낌이었는데(2026-10-13 4차 피드백), 이렇게 하면 내용
+            전체 블록 위아래로 여백이 고르게 생기고, gap도 넉넉히 둬서 섹션 사이 간격도 일정해진다. */}
         <div
           style={{
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            gap: 36,
-            marginTop: 64,
+            flex: 1,
+            justifyContent: 'center',
+            gap: 52,
           }}
         >
           <div
@@ -228,7 +233,6 @@ export async function GET() {
           style={{
             display: 'flex',
             justifyContent: 'center',
-            marginTop: 'auto',
             paddingTop: 28,
             borderTop: '2px solid #e7e5e4',
             fontSize: 22,
