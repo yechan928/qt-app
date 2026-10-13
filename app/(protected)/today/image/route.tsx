@@ -25,8 +25,10 @@ function formatDate(dateStr: string) {
 // 본문요약·중보기도를 절대 안 잘리게 하려면 글자 수를 보고 카드 높이를 미리 계산해야 한다
 // (2026-10-13 피드백: "아무리 길어도 잘리면 안 됨"). 완벽한 측정은 아니고 한글 기준 대략적인
 // 추정치 — 실제 폭보다 넉넉하게 잡아서 줄바꿈이 예상보다 한 줄 더 생겨도 잘리지 않게 한다.
+// word-break: keep-all(2026-10-13 3차 — 어절 중간에서 안 끊기게)을 쓰면 단어가 통째로 다음 줄로
+// 밀려서 줄 끝에 빈 공간이 생길 수 있어, 실제보다 줄 수가 더 나올 수 있다 → 여유율을 더 크게 잡는다.
 function estimateLines(text: string, fontSize: number, maxWidth: number) {
-  const charsPerLine = Math.max(1, Math.floor(maxWidth / (fontSize * 1.05)));
+  const charsPerLine = Math.max(1, Math.floor(maxWidth / (fontSize * 1.3)));
   return text
     .split('\n')
     .reduce((sum, line) => sum + Math.max(1, Math.ceil(line.length / charsPerLine)), 0);
@@ -103,7 +105,7 @@ export async function GET() {
     (schedule.prayer ? 80 : 0); // "오늘의 기도" 라벨 한 줄만큼 여유 추가
   // 글자 수 기반 추정이라 실제 줄바꿈과 완전히 일치하진 않는다 — 모자라서 잘리는 것보다
   // 여백이 조금 남는 쪽이 안전해서 80px 여유를 더 둔다.
-  const cardHeight = Math.max(900, Math.round(fixedHeight + contentHeight + 80));
+  const cardHeight = Math.max(900, Math.round(fixedHeight + contentHeight + 120));
 
   return new ImageResponse(
     (
@@ -167,6 +169,7 @@ export async function GET() {
                 lineHeight: 1.8,
                 textAlign: 'center',
                 whiteSpace: 'pre-line',
+                wordBreak: 'keep-all',
               }}
             >
               {schedule.summary.trim()}
@@ -195,6 +198,7 @@ export async function GET() {
                   lineHeight: 1.8,
                   textAlign: 'center',
                   whiteSpace: 'pre-line',
+                  wordBreak: 'keep-all',
                 }}
               >
                 {schedule.prayer.trim()}
@@ -212,6 +216,7 @@ export async function GET() {
                 lineHeight: 1.8,
                 textAlign: 'center',
                 whiteSpace: 'pre-line',
+                wordBreak: 'keep-all',
               }}
             >
               {schedule.verse_text.trim()}
