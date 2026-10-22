@@ -24,18 +24,20 @@ export default async function MembersPage() {
     redirect('/');
   }
 
-  // group_members RLS는 "내가 속한 그룹만" 보이도록 돼 있어서(PLAN.md §K), 관리자가
-  // 속하지 않은 그룹까지 포함한 전체 소속 현황을 보려면 서비스 롤 키로 RLS를 우회해야 한다.
+  // profiles/posts는 RLS가 이미 모든 로그인 사용자에게 select를 허용해서(PLAN.md §B)
+  // 일반 클라이언트로 충분하다. group_members만 "내가 속한 그룹만" RLS라(PLAN.md §K),
+  // 관리자가 속하지 않은 그룹까지 포함한 전체 소속 현황을 보려면 서비스 롤 키가 필요하다.
   // 이 요청자가 관리자인지는 위에서 이미 확인했다(SPEC.md §5).
   const admin = createAdminClient();
 
-  const [{ data: profiles }, { data: memberships }, { data: posts }, { data: authUsers }] =
-    await Promise.all([
-      admin.from('profiles').select('id, nickname, created_at, last_device').order('created_at'),
-      admin.from('group_members').select('user_id, groups(name)'),
-      admin.from('posts').select('user_id, qt_date'),
-      admin.auth.admin.listUsers(),
-    ]);
+  const [{ data: profiles }, { data: memberships }, { data: posts }] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('id, nickname, created_at, last_device, last_active_at')
+      .order('created_at'),
+    admin.from('group_members').select('user_id, groups(name)'),
+    supabase.from('posts').select('user_id, qt_date'),
+  ]);
 
   const groupsByUser = new Map<string, string[]>();
   for (const row of (memberships ?? []) as unknown as { user_id: string; groups: { name: string } | null }[]) {
@@ -55,11 +57,6 @@ export default async function MembersPage() {
     }
   }
 
-  const lastSignInByUser = new Map<string, string | null>();
-  for (const u of authUsers?.users ?? []) {
-    lastSignInByUser.set(u.id, u.last_sign_in_at ?? null);
-  }
-
   const members: MemberRow[] = (profiles ?? []).map((p) => ({
     id: p.id,
     nickname: p.nickname,
@@ -68,7 +65,7 @@ export default async function MembersPage() {
     groups: groupsByUser.get(p.id) ?? [],
     postCount: postStatsByUser.get(p.id)?.count ?? 0,
     lastPostDate: postStatsByUser.get(p.id)?.lastDate ?? null,
-    lastSignInAt: lastSignInByUser.get(p.id) ?? null,
+    lastActiveAt: p.last_active_at,
   }));
 
   return (

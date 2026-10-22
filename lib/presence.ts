@@ -34,9 +34,18 @@ function getChannel(): Promise<RealtimeChannel> {
 // "나 지금 여기 있음"을 알린다. user_id는 presence 키가 아니라 payload에 직접 담는다 —
 // 채널을 누가 먼저 만드는지(레이아웃의 PresenceTracker vs 관리자 화면)에 따라 presence 키
 // 설정이 달라지면 곤란해서, 식별은 항상 payload의 user_id로만 한다.
+//
+// 회원 관리 화면(SPEC.md §4-12)의 "최근 접속"도 이 시점에 함께 기록한다 — auth.users의
+// last_sign_in_at은 실제 재인증 시점만 기록해서(세션이 오래 유지되는 이 앱에서는 며칠~몇 주씩
+// 오래됐을 수 있음, 2026-10-22 사용자 피드백), 접속 중 추적이 이미 일어나는 이 자리에서
+// profiles.last_active_at을 직접 갱신하는 게 더 정확하다.
 export async function trackPresence(userId: string) {
   const ch = await getChannel();
   await ch.track({ user_id: userId, online_at: new Date().toISOString() });
+
+  const supabase = createClient();
+  // 실패해도(네트워크 일시 오류 등) 접속 중 표시 자체는 이미 됐으니 막지 않는다 — 부가 정보일 뿐.
+  await supabase.from('profiles').update({ last_active_at: new Date().toISOString() }).eq('id', userId);
 }
 
 // presence 상태가 바뀔 때마다 호출된다. 이미 채널이 구독 중이면 등록 즉시 한 번도 불러줘서,

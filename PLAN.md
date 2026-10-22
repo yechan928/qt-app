@@ -429,7 +429,7 @@ alter table profiles add column last_device text;
 
 ### 서비스 롤 키 전용 클라이언트 — `lib/supabase/admin.ts` (신규)
 
-`auth.users.last_sign_in_at`은 일반 RLS 클라이언트로는 조회 불가(Supabase Auth 내부 스키마) — 이 한 가지 데이터만 서비스 롤 키(관리자 API)로 가져온다.
+`group_members`만 "내가 속한 그룹만" RLS라(PLAN.md §K), 관리자가 속하지 않은 그룹까지 포함한 전체 소속 현황을 보려면 이 한 가지 데이터만 서비스 롤 키로 RLS를 우회해서 가져온다.
 
 ```ts
 // 주의: RLS를 완전히 우회함. 반드시 서버 전용 코드에서, "요청자가 관리자인지" 확인한 뒤에만 사용.
@@ -444,7 +444,11 @@ export function createAdminClient() {
 }
 ```
 
-닉네임·가입일·소속 그룹·나눔 작성 현황은 전부 기존 RLS 서버 클라이언트(`lib/supabase/server.ts`)로 이미 조회 가능 — 현재 RLS가 `profiles`/`posts` select를 모든 로그인 사용자에게 열어두고 있어서(PLAN.md §B "RLS 정책 요지" 참고) 이 화면이 새 권한을 여는 게 아니라, 이미 기술적으로 조회 가능했던 데이터를 관리자 전용 화면에 모아 보여주는 것뿐이다.
+닉네임·가입일·나눔 작성 현황·최근 접속은 전부 기존 RLS 서버 클라이언트(`lib/supabase/server.ts`)로 이미 조회 가능 — 현재 RLS가 `profiles`/`posts` select를 모든 로그인 사용자에게 열어두고 있어서(PLAN.md §B "RLS 정책 요지" 참고) 이 화면이 새 권한을 여는 게 아니라, 이미 기술적으로 조회 가능했던 데이터를 관리자 전용 화면에 모아 보여주는 것뿐이다.
+
+**"최근 로그인" → "최근 접속"으로 교체(2026-10-22 2차 수정)**: 처음엔 `auth.users.last_sign_in_at`(일반 RLS 클라이언트로는 조회 불가, 서비스 롤 키 필요)을 썼는데, 이 값은 실제 재인증 시점만 기록해서 세션이 오래 유지되는 이 앱에서는 사용자가 매일 써도 몇 주 전으로 보일 수 있다는 지적을 받았다. 그래서 이미 만들어둔 Presence 추적 시점(`lib/presence.ts`의 `trackPresence`)마다 `profiles.last_active_at`을 직접 갱신하는 방식으로 교체 — 이 교체로 이 페이지에서 서비스 롤 키가 필요한 데이터는 `group_members`(그룹 전체 소속 현황) 하나만 남음.
+
+**`profiles` UPDATE 정책 누락 발견(2026-10-22)**: 이 작업을 하다가 `profiles` 테이블에 애초에 UPDATE 정책이 전혀 없었다는 걸 발견했다 — `0001_init.sql`엔 select 정책(`profiles_select_authenticated`)만 있고 update 정책이 없어서, 로그인 콜백에서 `last_device`를 저장하려던 것도 지금까지 조용히 실패하고 있었다(에러를 따로 체크·노출하지 않아서 못 알아챔). `0009_profiles_last_active.sql`에서 본인 행만 수정 가능한 `profiles_update_own` 정책을 추가해 `last_device`·`last_active_at` 둘 다 정상적으로 쓰이게 됨.
 
 ### 실시간 접속 중 표시 — Supabase Realtime Presence
 
@@ -490,9 +494,10 @@ export function createAdminClient() {
 - `app/manifest.ts`(2026-08-14 추가, PWA — `MetadataRoute.Manifest` 반환하는 Next.js 특수 파일, `/manifest.webmanifest`로 서빙됨), `public/icons/{icon-192,icon-512,apple-touch-icon}.png`(Playwright로 HTML을 스크린샷 찍어 만든 amber-600 배경 + "QT" 흰 글자 아이콘, `sips`로 사이즈별 리사이즈)
 - `app/layout.tsx`(2026-08-14 수정, PWA): `metadata.appleWebApp`(capable/title/statusBarStyle) + `metadata.icons.apple` + `metadata.other['apple-mobile-web-app-capable']`(Next.js가 표준 `mobile-web-app-capable`만 자동 생성해서, iOS 16.4 미만 호환용으로 구식 태그를 수동 추가) + `export const viewport: Viewport = { themeColor: '#d97706' }` 추가
 - `supabase/migrations/0008_profiles_last_device.sql`(2026-10-22 추가, §L) — `profiles.last_device` 컬럼
+- `supabase/migrations/0009_profiles_last_active.sql`(2026-10-22 2차 추가, §L) — `profiles.last_active_at` 컬럼("최근 로그인" → "최근 접속"으로 교체) + 누락돼 있던 `profiles` UPDATE RLS 정책(본인 행만) 추가
 - `lib/supabase/admin.ts`(2026-10-22 추가, §L) — 서비스 롤 키 전용 클라이언트, `members/page.tsx`에서만 사용
 - `app/(protected)/members/page.tsx`(2026-10-22 추가, §L) — 회원 관리(관리자 전용, 조회 전용)
-- `lib/presence.ts`(2026-10-22 추가, §L) — 앱 전체가 공유하는 Realtime Presence 채널을 모듈 스코프에서 하나만 관리. `PresenceTracker`와 `MembersAdminView`가 각자 `supabase.channel('app-presence')`를 따로 만들면 브라우저에서 사실상 싱글턴인 Supabase 클라이언트가 같은 채널 객체를 돌려줘서, 이미 구독된 채널에 두 번째 컴포넌트가 `.on('presence', ...)`을 또 붙이려다 "cannot add presence callbacks ... after subscribe()" 에러가 났음 — 채널 생성·구독·리스너 등록을 이 파일 하나로 모아서 해결
+- `lib/presence.ts`(2026-10-22 추가, §L) — 앱 전체가 공유하는 Realtime Presence 채널을 모듈 스코프에서 하나만 관리. `PresenceTracker`와 `MembersAdminView`가 각자 `supabase.channel('app-presence')`를 따로 만들면 브라우저에서 사실상 싱글턴인 Supabase 클라이언트가 같은 채널 객체를 돌려줘서, 이미 구독된 채널에 두 번째 컴포넌트가 `.on('presence', ...)`을 또 붙이려다 "cannot add presence callbacks ... after subscribe()" 에러가 났음 — 채널 생성·구독·리스너 등록을 이 파일 하나로 모아서 해결. `trackPresence()` 호출 시 `profiles.last_active_at`도 함께 갱신(2026-10-22 2차 수정, "최근 접속"의 데이터 출처)
 - `components/{PresenceTracker,MembersAdminView}.tsx`(2026-10-22 추가, §L) — `lib/presence.ts`를 통해 실시간 접속 중 표시(`PresenceTracker`는 `(protected)/layout.tsx`에 마운트돼 전체 사용자에게 적용, 자기 자신의 접속만 알림) + 회원 목록 렌더(`MembersAdminView`는 상태 구독만, 직접 track 안 함)
 
 **재사용 가능한 기존 유틸리티**: 없음 (새 프로젝트).

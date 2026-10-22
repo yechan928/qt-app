@@ -11,7 +11,9 @@ export type MemberRow = {
   groups: string[];
   postCount: number;
   lastPostDate: string | null;
-  lastSignInAt: string | null;
+  // auth.users.last_sign_in_at 대신 Presence 추적 시점마다 직접 갱신한 값(lib/presence.ts) —
+  // 재인증 시점이 아니라 실제로 앱을 연 시점에 더 가까워서 "최근 로그인"보다 정확하다.
+  lastActiveAt: string | null;
 };
 
 function formatDate(iso: string | null) {
@@ -77,7 +79,7 @@ export default function MembersAdminView({
 
             <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-stone-500">
               <p>가입일: {formatDate(m.createdAt)}</p>
-              <p>최근 로그인: {formatDate(m.lastSignInAt)}</p>
+              <p>최근 접속: {formatDate(m.lastActiveAt)}</p>
               <p>
                 나눔: {m.postCount}개
                 {m.lastPostDate && ` · 최근 ${m.lastPostDate}`}

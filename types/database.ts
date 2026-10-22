@@ -9,6 +9,8 @@ export type Profile = {
   created_at: string;
   // 회원 관리 화면(SPEC.md §4-12)용 — 로그인마다 User-Agent로 분류해 갱신(0008 마이그레이션).
   last_device: 'mobile' | 'desktop' | null;
+  // "최근 접속" 표시용 — auth.users.last_sign_in_at 대신 Presence 추적 시점마다 직접 갱신(0009 마이그레이션).
+  last_active_at: string | null;
 };
 
 export type BibleVerse = {
