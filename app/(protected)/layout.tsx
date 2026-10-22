@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import NavBar from '@/components/NavBar';
 import BfcacheRefresh from '@/components/BfcacheRefresh';
+import PresenceTracker from '@/components/PresenceTracker';
 
 export default async function ProtectedLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -22,6 +23,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
   return (
     <>
       <BfcacheRefresh />
+      <PresenceTracker userId={user.id} />
       <NavBar isAdmin={profile?.is_admin ?? false} />
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-6">{children}</main>
     </>

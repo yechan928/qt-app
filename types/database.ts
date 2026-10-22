@@ -7,6 +7,8 @@ export type Profile = {
   avatar_url: string | null;
   is_admin: boolean;
   created_at: string;
+  // 회원 관리 화면(SPEC.md §4-12)용 — 로그인마다 User-Agent로 분류해 갱신(0008 마이그레이션).
+  last_device: 'mobile' | 'desktop' | null;
 };
 
 export type BibleVerse = {

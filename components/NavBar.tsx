@@ -11,11 +11,12 @@ const LINKS = [
 ];
 
 const ADMIN_LINK = { href: '/schedule', label: '말씀 등록' };
+const MEMBERS_LINK = { href: '/members', label: '회원 관리' };
 
 export default function NavBar({ isAdmin }: { isAdmin: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
-  const links = isAdmin ? [...LINKS, ADMIN_LINK] : LINKS;
+  const links = isAdmin ? [...LINKS, ADMIN_LINK, MEMBERS_LINK] : LINKS;
 
   async function handleLogout() {
     const supabase = createClient();

@@ -409,6 +409,70 @@ create or replace function create_post_with_shares(
 
 ---
 
+## L. 회원 관리 (관리자 전용 조회 화면, 2026-10-22 추가)
+
+관리자가 전체 회원의 활동 현황을 조회만 하는 화면. SPEC.md §4-12·§5·§6 참고 — **역할 변경·추방 등 상태를 바꾸는 기능은 전혀 없음**(조회 전용, §6 "관리자 지정 UI 금지" 조항은 역할을 바꾸는 UI에만 해당하도록 2026-10-22에 범위를 명확히 함).
+
+### DB 스키마
+
+`supabase/migrations/0008_profiles_last_device.sql`:
+
+```sql
+alter table profiles add column last_device text;
+```
+
+값은 `'mobile'` | `'desktop'` (아직 로그인 이력이 없으면 `null`). 로그인 콜백에서 User-Agent로 분류해 갱신(아래 참고). RLS는 기존 `profiles` 정책 그대로(본인 행만 수정 가능 — 이 컬럼도 로그인한 본인에 대해서만 서버 쪽에서 update).
+
+### 로그인 시 기기 분류 — `app/auth/callback/route.ts` 수정
+
+세션 교환 성공 직후 `request.headers.get('user-agent')`를 간단한 정규식(`/Mobi|Android|iPhone/i`)으로 `mobile`/`desktop`만 분류해 `profiles.last_device`를 update. 이미 그 요청 핸들러 안에서 처리하므로 새 네트워크 호출 없음. IP 기반 위치 추적은 하지 않음(SPEC §4-12 참고).
+
+### 서비스 롤 키 전용 클라이언트 — `lib/supabase/admin.ts` (신규)
+
+`auth.users.last_sign_in_at`은 일반 RLS 클라이언트로는 조회 불가(Supabase Auth 내부 스키마) — 이 한 가지 데이터만 서비스 롤 키(관리자 API)로 가져온다.
+
+```ts
+// 주의: RLS를 완전히 우회함. 반드시 서버 전용 코드에서, "요청자가 관리자인지" 확인한 뒤에만 사용.
+// (protected)/layout.tsx의 인증 체크는 Server Component 페이지에만 적용되고 같은 경로의
+// route.tsx에는 적용되지 않으므로(today/image 라우트에서 이미 겪은 문제), 이 함수를 쓰는
+// 쪽에서 매번 직접 관리자 확인을 먼저 해야 한다(SPEC.md §5).
+export function createAdminClient() {
+  return createClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
+```
+
+닉네임·가입일·소속 그룹·나눔 작성 현황은 전부 기존 RLS 서버 클라이언트(`lib/supabase/server.ts`)로 이미 조회 가능 — 현재 RLS가 `profiles`/`posts` select를 모든 로그인 사용자에게 열어두고 있어서(PLAN.md §B "RLS 정책 요지" 참고) 이 화면이 새 권한을 여는 게 아니라, 이미 기술적으로 조회 가능했던 데이터를 관리자 전용 화면에 모아 보여주는 것뿐이다.
+
+### 실시간 접속 중 표시 — Supabase Realtime Presence
+
+새 npm 의존성 없음(`@supabase/supabase-js`에 이미 포함된 Realtime 기능).
+
+- `lib/presence.ts` (신규) — 채널 생성·구독·리스너 등록을 전부 여기 한 곳에서만 한다. `PresenceTracker`와 `MembersAdminView`가 각자 독립적으로 `supabase.channel('app-presence')`를 만들면, 브라우저에서 사실상 싱글턴인 Supabase 클라이언트가 같은 채널 객체를 돌려줘서 **이미 구독된 채널에 두 번째 컴포넌트가 `.on('presence', ...)`을 붙이려다 에러가 났다**("cannot add presence callbacks ... after subscribe()", 2026-10-22 구현 중 실제로 겪음). 그래서 모듈 스코프에서 채널 하나만 만들고(`trackPresence(userId)`로 알리기, `onPresenceSync(listener)`로 구독하기, `getOnlineUserIds()`로 현재 상태 읽기 3개 함수로 캡슐화), 식별은 presence 키가 아니라 `track()` payload의 `user_id` 필드로 한다(채널을 누가 먼저 만드는지에 따라 presence 키 설정이 달라지는 걸 피하기 위함).
+- `components/PresenceTracker.tsx` (신규, client, 렌더 없음·`null` 반환) — `(protected)/layout.tsx`에 마운트해 **모든 로그인 사용자**에게 적용. 마운트 시 `trackPresence(userId)` 호출. 탭을 닫거나 (protected) 영역을 벗어나면(로그아웃 등) Realtime이 연결 종료를 감지해 자동으로 정리 — 명시적 untrack 호출 불필요.
+- `components/MembersAdminView.tsx` (신규, client) — `onPresenceSync`로 상태 변화를 구독만 하고(직접 track 안 함 — 관리자 본인도 `PresenceTracker`가 이미 추적 중), `getOnlineUserIds()`로 얻은 `user_id` 집합을 서버에서 내려받은 회원 목록과 합쳐 "접속 중" 표시.
+- 채널은 그룹 단위가 아니라 **앱 전체 공용 1개**(회원 관리 화면 자체가 그룹과 무관하게 전체 회원을 보여주는 것과 일치).
+
+### 나눔 작성 현황 집계
+
+`posts`에서 `user_id, qt_date`만 select해 서버에서 `reduce`로 사용자별 `{count, lastDate}` 계산. 소규모 모임 스케일이라 SQL 집계 함수·뷰 없이 충분(SPEC §5 "가장 단순한 쪽").
+
+### 페이지 & 컴포넌트
+
+- `app/(protected)/members/page.tsx` (Server Component) — `schedule/page.tsx`와 동일한 패턴으로 관리자 아니면 `/`로 리다이렉트. `profiles`+`group_members`+`posts`(일반 서버 클라이언트)와 `auth.admin.listUsers()`(관리자 클라이언트, `lib/supabase/admin.ts`)를 각각 조회해 `user_id` 기준으로 merge한 뒤 `components/MembersAdminView.tsx`에 props로 전달.
+- `components/MembersAdminView.tsx` (client) — 회원별 닉네임/가입일/소속 그룹/나눔 작성 현황/최근 로그인 시간/접속 기기/접속 중 여부를 목록으로 렌더. Presence 구독만 클라이언트에서 처리하고 나머지는 서버에서 받은 props 그대로 표시.
+- `components/NavBar.tsx` 수정 — `ADMIN_LINK` 옆에 `MEMBERS_LINK = { href: '/members', label: '회원 관리' }` 추가, 관리자에게만 노출(기존 패턴 그대로 재사용).
+
+### 리스크
+
+- **Presence 채널 상시 연결**: 로그인한 모든 사용자가 (protected) 영역에 있는 동안 Realtime 연결을 하나씩 유지 — 소규모 모임(10여 명) 스케일에서는 무시 가능, 규모가 커지면 재검토.
+- **기기 분류 정확도**: User-Agent 정규식 기반이라 일부 태블릿·특이 브라우저는 오분류 가능 — "대략적인 참고용" 수준으로만 취급하고 정밀도를 더 높이려 하지 않음(YAGNI).
+- **서비스 롤 키 오남용**: 이 키는 RLS를 완전히 우회하므로, `lib/supabase/admin.ts`는 오직 `members/page.tsx`에서만 import해서 쓰고 다른 곳에 재사용하지 않도록 주의.
+
+---
+
 ## 주요 파일 (생성 대상)
 
 - `proxy.ts`
@@ -425,6 +489,11 @@ create or replace function create_post_with_shares(
 - `types/database.ts`
 - `app/manifest.ts`(2026-08-14 추가, PWA — `MetadataRoute.Manifest` 반환하는 Next.js 특수 파일, `/manifest.webmanifest`로 서빙됨), `public/icons/{icon-192,icon-512,apple-touch-icon}.png`(Playwright로 HTML을 스크린샷 찍어 만든 amber-600 배경 + "QT" 흰 글자 아이콘, `sips`로 사이즈별 리사이즈)
 - `app/layout.tsx`(2026-08-14 수정, PWA): `metadata.appleWebApp`(capable/title/statusBarStyle) + `metadata.icons.apple` + `metadata.other['apple-mobile-web-app-capable']`(Next.js가 표준 `mobile-web-app-capable`만 자동 생성해서, iOS 16.4 미만 호환용으로 구식 태그를 수동 추가) + `export const viewport: Viewport = { themeColor: '#d97706' }` 추가
+- `supabase/migrations/0008_profiles_last_device.sql`(2026-10-22 추가, §L) — `profiles.last_device` 컬럼
+- `lib/supabase/admin.ts`(2026-10-22 추가, §L) — 서비스 롤 키 전용 클라이언트, `members/page.tsx`에서만 사용
+- `app/(protected)/members/page.tsx`(2026-10-22 추가, §L) — 회원 관리(관리자 전용, 조회 전용)
+- `lib/presence.ts`(2026-10-22 추가, §L) — 앱 전체가 공유하는 Realtime Presence 채널을 모듈 스코프에서 하나만 관리. `PresenceTracker`와 `MembersAdminView`가 각자 `supabase.channel('app-presence')`를 따로 만들면 브라우저에서 사실상 싱글턴인 Supabase 클라이언트가 같은 채널 객체를 돌려줘서, 이미 구독된 채널에 두 번째 컴포넌트가 `.on('presence', ...)`을 또 붙이려다 "cannot add presence callbacks ... after subscribe()" 에러가 났음 — 채널 생성·구독·리스너 등록을 이 파일 하나로 모아서 해결
+- `components/{PresenceTracker,MembersAdminView}.tsx`(2026-10-22 추가, §L) — `lib/presence.ts`를 통해 실시간 접속 중 표시(`PresenceTracker`는 `(protected)/layout.tsx`에 마운트돼 전체 사용자에게 적용, 자기 자신의 접속만 알림) + 회원 목록 렌더(`MembersAdminView`는 상태 구독만, 직접 track 안 함)
 
 **재사용 가능한 기존 유틸리티**: 없음 (새 프로젝트).
 

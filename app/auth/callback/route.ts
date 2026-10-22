@@ -1,6 +1,13 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
+// 회원 관리 화면(SPEC.md §4-12)의 "최근 접속 기기" 표시용. 정밀한 기기 판별이 아니라
+// 대략적인 참고용이라 모바일 UA 패턴만 확인하고 나머지는 전부 데스크톱으로 묶는다(PLAN.md §L).
+function classifyDevice(userAgent: string | null): 'mobile' | 'desktop' {
+  if (userAgent && /Mobi|Android|iPhone/i.test(userAgent)) return 'mobile';
+  return 'desktop';
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams, origin: rawOrigin } = new URL(request.url);
   const code = searchParams.get('code');
@@ -16,6 +23,14 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) {
+        const device = classifyDevice(request.headers.get('user-agent'));
+        // 실패해도 로그인 자체는 이미 성공했으니 막지 않는다(부가 정보일 뿐).
+        await supabase.from('profiles').update({ last_device: device }).eq('id', user.id);
+      }
       return NextResponse.redirect(`${origin}/`);
     }
   }
